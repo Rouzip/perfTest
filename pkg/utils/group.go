@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"os"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -10,6 +11,16 @@ import (
 )
 
 const config = "/home/ubuntu/.kube/config"
+
+type CPICollector interface {
+	CollectCycle() (int64, error)
+	CollectInstrction() (int64, error)
+	Compute() (float64, error)
+}
+
+type RawCollector struct {
+	CGroupDir *os.File
+}
 
 // get test nginx container cgroup path
 func GetTestCgroupPath(node string) ([]string, error) {
@@ -22,12 +33,12 @@ func GetTestCgroupPath(node string) ([]string, error) {
 		klog.Fatal(err)
 	}
 
-	pods, err := k8sClient.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{
+	pods, err := k8sClient.CoreV1().Pods("nginx").List(context.Background(), metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + node,
 	})
 
 	for _, pod := range pods.Items {
-		klog.Info(pod.Name)
+		klog.Info(pod.UID)
 	}
 
 	return nil, nil
