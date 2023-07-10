@@ -81,8 +81,3 @@ func ContainerId(container *v1.ContainerStatus) string {
 	hashs := strings.Split(container.ContainerID, "://")
 	return fmt.Sprintf("cri-containerd-%s.scope", hashs[1])
 }
-
-/*
-/sys/fs/cgroup/kubepods.slice/kubepods-pod8e97aaf0_3461_45cd_902b_0922dd6af6e0.slice
-/sys/fs/cgroup/kubepods.slice/kubepods-pod8e97aaf0-3461-45cd-902b-0922dd6af6e0.slice/cri-containerd-7f7ccf05e97be2bf8fc03b91a9cca11c5b6d31149d60d11e67b7df4bf127bb52.scope
-*/
