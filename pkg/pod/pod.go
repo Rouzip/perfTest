@@ -6,6 +6,7 @@ import (
 
 	gorawcollector "github.com/Rouzip/goperf/pkg/goRawCollector"
 	"github.com/Rouzip/goperf/pkg/metrics"
+
 	rawcollector "github.com/Rouzip/goperf/pkg/rawCollector"
 	"github.com/Rouzip/goperf/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -24,6 +25,8 @@ func GeneratePodCollector(t string, pods []*v1.Pod) (*PodCollector, error) {
 		UnitMap:         make(map[utils.Unit]struct{}),
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(pods))
 	for _, pod := range pods {
 		for _, container := range pod.Status.ContainerStatuses {
 			collector.UnitMap[utils.Unit{
@@ -33,6 +36,7 @@ func GeneratePodCollector(t string, pods []*v1.Pod) (*PodCollector, error) {
 			}] = struct{}{}
 			if t == "goraw" {
 				go func(pod *v1.Pod, container *v1.ContainerStatus) {
+					defer wg.Done()
 					collector.PodCollectorMap.Store(utils.Unit{
 						Container: container.Name,
 						Pod:       pod.Name,
@@ -41,17 +45,25 @@ func GeneratePodCollector(t string, pods []*v1.Pod) (*PodCollector, error) {
 				}(pod, &container)
 			} else if t == "libpfm4" {
 				go func(pod *v1.Pod, container *v1.ContainerStatus) {
+					defer wg.Done()
 					collector.PodCollectorMap.Store(utils.Unit{
 						Container: container.Name,
 						Pod:       pod.Name,
 						Namespace: pod.Namespace,
-					}, rawcollector.NewRawCollector(pod, container))
+					}, rawcollector.NewRawCollector(pod, container, rawcollector.EventsGroup{
+						EventsGroup: []rawcollector.Group{
+							rawcollector.Group{
+								Events: []string{"instructions", "cycles"},
+							},
+						},
+					}))
 				}(pod, &container)
 			} else {
 				return nil, fmt.Errorf("unknown collector type: %s", t)
 			}
 		}
 	}
+	wg.Wait()
 	collector.Type = t
 
 	return collector, nil
@@ -64,7 +76,6 @@ func (p *PodCollector) Profile() {
 
 	for unit := range p.UnitMap {
 		go func(unit utils.Unit) {
-			klog.Info(unit)
 			defer wg.Done()
 			if collector, ok := p.PodCollectorMap.Load(unit); ok {
 				if p.Type == "goraw" {
@@ -73,7 +84,10 @@ func (p *PodCollector) Profile() {
 					metrics.RecordCPI(goc.Container, goc.Pod, float64(goc.Cycle), float64(goc.Instruction))
 					defer goc.Close()
 				} else if p.Type == "libpfm4" {
-
+					rc := collector.(*rawcollector.RawCollector)
+					rc.Collect()
+					metrics.RecordCPI(rc.Container, rc.Pod, rc.Values["cycles"], rc.Values["instructions"])
+					defer rc.Close()
 				} else {
 					klog.Fatal("unknown collector type")
 				}

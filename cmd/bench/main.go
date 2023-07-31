@@ -29,15 +29,15 @@ func main() {
 		if err != nil {
 			klog.Fatal(err)
 		}
-		collector, err := pod.GeneratePodCollector("goraw", pods)
+		collector, err := pod.GeneratePodCollector("libpfm4", pods)
 		if err != nil {
 			klog.Fatal(err)
 		}
 		// collect perf CPI for 10s
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 5)
 		// collector
 		collector.Profile()
-	}, 60*time.Second, ctx.Done())
+	}, 10*time.Second, ctx.Done())
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(":8080", nil)
 	wg.Wait()
