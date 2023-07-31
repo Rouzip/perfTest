@@ -133,13 +133,13 @@ func (g *group) createEnabledFds(cgroupFd *os.File, idMap chan perfId) error {
 				go func(event string, cpu int) {
 					attr := eventConfigMap[event]
 					attr.Bits = unix.PerfBitInherit
-					_, err = unix.PerfEventOpen(attr, int(cgroupFd.Fd()), cpu, leaderFd, unix.PERF_FLAG_PID_CGROUP|unix.PERF_FLAG_FD_CLOEXEC)
+					fd, err := unix.PerfEventOpen(attr, int(cgroupFd.Fd()), cpu, leaderFd, unix.PERF_FLAG_PID_CGROUP|unix.PERF_FLAG_FD_CLOEXEC)
 					if err != nil {
 						klog.Error(err)
 					}
 					var id uint64
-					_, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(leaderFd), unix.PERF_EVENT_IOC_ID, uintptr(unsafe.Pointer(&id)))
-					if err != 0 {
+					_, _, err = syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), unix.PERF_EVENT_IOC_ID, uintptr(unsafe.Pointer(&id)))
+					if err != syscall.Errno(0) {
 						klog.Error(err)
 					}
 					idMap <- perfId{
@@ -151,10 +151,10 @@ func (g *group) createEnabledFds(cgroupFd *os.File, idMap chan perfId) error {
 		}
 	}
 	for _, fd := range fdMap {
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 0); err != nil {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_RESET, 1); err != nil {
 			return err
 		}
-		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
+		if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 1); err != nil {
 			return err
 		}
 	}
@@ -164,7 +164,6 @@ func (g *group) createEnabledFds(cgroupFd *os.File, idMap chan perfId) error {
 func (g *group) collect(ch chan perfValue) error {
 	var wg sync.WaitGroup
 	wg.Add(len(g.fds))
-	klog.Info("group start number %d", len(g.fds))
 	for _, fd := range g.fds {
 		go func(fd io.ReadCloser) {
 			defer wg.Done()
@@ -184,6 +183,7 @@ func (g *group) collect(ch chan perfValue) error {
 			header := &groupReadFormat{}
 			reader := bytes.NewReader(buf)
 			err = binary.Read(reader, binary.LittleEndian, header)
+			klog.Info("header: %v", header)
 			if err != nil {
 				klog.Error(err)
 				return
