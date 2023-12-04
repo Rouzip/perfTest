@@ -53,7 +53,7 @@ func GeneratePodCollector(t string, pods []*v1.Pod) (*PodCollector, error) {
 					}, rawcollector.NewRawCollector(pod, container, rawcollector.EventsGroup{
 						EventsGroup: []rawcollector.Group{
 							rawcollector.Group{
-								Events: []string{"instructions", "cycles"},
+								Events: utils.EventsToCollect,
 							},
 						},
 					}))
@@ -81,12 +81,14 @@ func (p *PodCollector) Profile() {
 				if p.Type == "goraw" {
 					goc := collector.(*gorawcollector.GoRawCollector)
 					goc.Collect()
-					metrics.RecordCPI(goc.Container, goc.Pod, float64(goc.Cycle), float64(goc.Instruction))
+					//metrics.RecordCPI(goc.Container, goc.Pod, float64(goc.Cycle), float64(goc.Instruction))
 					defer goc.Close()
 				} else if p.Type == "libpfm4" {
 					rc := collector.(*rawcollector.RawCollector)
 					rc.Collect()
-					metrics.RecordCPI(rc.Container, rc.Pod, rc.Values["cycles"], rc.Values["instructions"])
+					klog.Info("rc.Values: ", rc.Values)
+
+					metrics.RecordCPI(rc.Container, rc.Pod, rc.Values["cycles"], rc.Values["instructions"], 64*rc.Values["LONGEST_LAT_CACHE.MISS"]/1000000000)
 					defer rc.Close()
 				} else {
 					klog.Fatal("unknown collector type")

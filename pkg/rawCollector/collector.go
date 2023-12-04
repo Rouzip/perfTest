@@ -40,7 +40,7 @@ func init() {
 	})
 	bufPool = sync.Pool{
 		New: func() interface{} {
-			return make([]byte, 24+16*2)
+			return make([]byte, 24+16*len(utils.EventsToCollect))
 		},
 	}
 }
@@ -183,7 +183,6 @@ func (g *group) collect(ch chan perfValue) error {
 			header := &groupReadFormat{}
 			reader := bytes.NewReader(buf)
 			err = binary.Read(reader, binary.LittleEndian, header)
-			klog.Info("header: %v", header)
 			if err != nil {
 				klog.Error(err)
 				return
@@ -243,7 +242,7 @@ func NewRawCollector(pod *v1.Pod, container *v1.ContainerStatus, events EventsGr
 	// for poc, change events to group
 	perfGroup := &group{
 		leaderName: "instructions",
-		eventNames: []string{"instructions", "cycles"},
+		eventNames: utils.EventsToCollect,
 		fds:        make(map[int]io.ReadCloser),
 	}
 	err = perfGroup.createEnabledFds(rc.CGroupFd, rc.idCh)

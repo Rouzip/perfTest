@@ -13,6 +13,7 @@ const (
 	Container    = "container"
 	ContainerID  = "containerid"
 	CPIFieid     = "cpi_type"
+	CacheMiss    = "LONGEST_LAT_CACHE.MISS"
 )
 
 var (
@@ -26,7 +27,7 @@ func init() {
 	prometheus.MustRegister(CPICollectors...)
 }
 
-func RecordCPI(container *v1.ContainerStatus, pod *v1.Pod, cycles, ins float64) {
+func RecordCPI(container *v1.ContainerStatus, pod *v1.Pod, cycles, ins float64, cachemiss float64) {
 	labels := prometheus.Labels{}
 	labels[Namespace] = pod.Namespace
 	labels[Pod] = pod.Name
@@ -37,4 +38,7 @@ func RecordCPI(container *v1.ContainerStatus, pod *v1.Pod, cycles, ins float64) 
 
 	labels[CPIFieid] = Instructions
 	ContainerCPI.With(labels).Set(ins)
+
+	labels[CPIFieid] = CacheMiss
+	ContainerCPI.With(labels).Set(cachemiss)
 }
